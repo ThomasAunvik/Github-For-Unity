@@ -81,7 +81,8 @@ namespace GitHub.Unity
                                 genericTableBoxStyle,
                                 historyDetailsTitleStyle,
                                 historyDetailsMetaInfoStyle,
-                                genericBoxStyle;
+                                genericBoxStyle,
+                                hyperlinkStyle;
 
         private static Texture2D branchIcon,
                                  activeBranchIcon,
@@ -281,10 +282,9 @@ namespace GitHub.Unity
             {
                 if (headerDescriptionStyle == null)
                 {
-                    headerDescriptionStyle = new GUIStyle(EditorStyles.label);
+                    headerDescriptionStyle = new GUIStyle(EditorStyles.wordWrappedLabel);
                     headerDescriptionStyle.name = "HeaderDescriptionStyle";
                     headerDescriptionStyle.margin = new RectOffset(0, 0, 0, 0);
-                    headerDescriptionStyle.wordWrap = true;
                 }
                 return headerDescriptionStyle;
             }
@@ -340,9 +340,8 @@ namespace GitHub.Unity
             {
                 if (errorLabel == null)
                 {
-                    errorLabel = new GUIStyle(EditorStyles.label);
+                    errorLabel = new GUIStyle(EditorStyles.wordWrappedLabel);
                     errorLabel.name = "ErrorLabel";
-                    errorLabel.wordWrap = true;
                     errorLabel.normal.textColor = Color.red;
                 }
                 return errorLabel;
@@ -355,10 +354,9 @@ namespace GitHub.Unity
             {
                 if (centeredErrorLabel == null)
                 {
-                    centeredErrorLabel = new GUIStyle(EditorStyles.label);
+                    centeredErrorLabel = new GUIStyle(EditorStyles.wordWrappedLabel);
                     centeredErrorLabel.alignment = TextAnchor.MiddleCenter;
                     centeredErrorLabel.name = "CenteredErrorLabel";
-                    centeredErrorLabel.wordWrap = true;
                     centeredErrorLabel.normal.textColor = Color.red;
                 }
                 return centeredErrorLabel;
@@ -371,10 +369,9 @@ namespace GitHub.Unity
             {
                 if (longMessageStyle == null)
                 {
-                    longMessageStyle = new GUIStyle(EditorStyles.miniLabel);
+                    longMessageStyle = new GUIStyle(EditorStyles.wordWrappedLabel);
                     longMessageStyle.name = "LongMessageStyle";
                     longMessageStyle.richText = true;
-                    longMessageStyle.wordWrap = true;
                 }
                 return longMessageStyle;
             }
@@ -653,6 +650,19 @@ namespace GitHub.Unity
                     genericBoxStyle.padding = new RectOffset(5, 5, 5, 5);
                 }
                 return genericBoxStyle;
+            }
+        }
+
+        public static GUIStyle HyperlinkStyle
+        {
+            get
+            {
+                if (hyperlinkStyle == null)
+                {
+                    hyperlinkStyle = new GUIStyle(EditorStyles.wordWrappedLabel);
+                    hyperlinkStyle.normal.textColor = new Color(0, 0, 0xEE);
+                }
+                return hyperlinkStyle;
             }
         }
 

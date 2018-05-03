@@ -2,7 +2,6 @@
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Timers;
 using System.Globalization;
 using System.Threading;
 using Timer = System.Threading.Timer;
@@ -47,7 +46,7 @@ namespace GitHub.Unity
                     json = storePath.ReadAllText(Encoding.UTF8);
                     if (json != null)
                     {
-                        result = SimpleJson.DeserializeObject<UsageStore>(json);
+                        result = json.FromJson<UsageStore>();
                     }
                 }
                 catch (Exception ex)
@@ -83,7 +82,7 @@ namespace GitHub.Unity
 
             try
             {
-                var json = SimpleJson.SerializeObject(store);
+                var json = store.ToJson();
                 storePath.WriteAllText(json, Encoding.UTF8);
             }
             catch (Exception ex)

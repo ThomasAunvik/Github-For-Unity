@@ -64,13 +64,14 @@ namespace GitHub.Unity
             }
 
             LogHelper.LogAdapter = new MultipleLogAdapter(new FileLogAdapter(logPath)
-                //, new UnityLogAdapter()
+                , new UnityLogAdapter()
                 );
             LogHelper.Info("Initializing GitHub for Unity version " + ApplicationInfo.Version);
 
             ApplicationManager.Run(ApplicationCache.Instance.FirstRun);
 
-            UpdateCheckWindow.CheckForUpdates();
+            if (ApplicationCache.Instance.FirstRun)
+                UpdateCheckWindow.CheckForUpdates();
         }
 
         private static bool ServerCertificateValidationCallback(object sender, X509Certificate certificate,

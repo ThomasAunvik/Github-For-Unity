@@ -30,7 +30,7 @@ namespace IntegrationTests
         protected IProcessManager ProcessManager { get; set; }
         protected NPath TestBasePath { get; private set; }
         protected CancellationToken Token => TaskManager.Token;
-        protected NPath TestApp => System.Reflection.Assembly.GetExecutingAssembly().Location.ToNPath().Combine("TestApp.exe");
+        protected NPath TestApp => System.Reflection.Assembly.GetExecutingAssembly().Location.ToNPath().Combine("CommandLine.exe");
 
         [TestFixtureSetUp]
         public void OneTimeSetup()

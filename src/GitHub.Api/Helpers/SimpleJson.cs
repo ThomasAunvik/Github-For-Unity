@@ -66,13 +66,14 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text;
-using GitHub.Reflection;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using GitHub.Unity.Json;
 
 // ReSharper disable LoopCanBeConvertedToQuery
 // ReSharper disable RedundantExplicitArrayCreation
 // ReSharper disable SuggestUseVarKeywordEvident
-namespace GitHub
+namespace GitHub.Unity.Json
 {
     /// <summary>
     /// Represents the json array.
@@ -483,10 +484,7 @@ namespace GitHub
         }
 #endif
     }
-}
 
-namespace GitHub
-{
     /// <summary>
     /// This class encodes and decodes JSON strings.
     /// Spec. details, see http://www.json.org/
@@ -523,7 +521,7 @@ namespace GitHub
         static SimpleJson()
         {
             EscapeTable = new char[93];
-            EscapeTable['"']  = '"';
+            EscapeTable['"'] = '"';
             EscapeTable['\\'] = '\\';
             EscapeTable['\b'] = 'b';
             EscapeTable['\f'] = 'f';
@@ -557,7 +555,7 @@ namespace GitHub
         /// <returns>
         /// Returns true if successfull otherwise false.
         /// </returns>
-        [SuppressMessage("Microsoft.Design", "CA1007:UseGenericsWhereAppropriate", Justification="Need to support .NET 2")]
+        [SuppressMessage("Microsoft.Design", "CA1007:UseGenericsWhereAppropriate", Justification = "Need to support .NET 2")]
         public static bool TryDeserializeObject(string json, out object obj)
         {
             bool success = true;
@@ -622,7 +620,7 @@ namespace GitHub
             StringBuilder sb = new StringBuilder();
             char c;
 
-            for (int i = 0; i < jsonString.Length; )
+            for (int i = 0; i < jsonString.Length;)
             {
                 c = jsonString[i++];
 
@@ -1232,7 +1230,7 @@ namespace GitHub
 #endif
  interface IJsonSerializerStrategy
     {
-        [SuppressMessage("Microsoft.Design", "CA1007:UseGenericsWhereAppropriate", Justification="Need to support .NET 2")]
+        [SuppressMessage("Microsoft.Design", "CA1007:UseGenericsWhereAppropriate", Justification = "Need to support .NET 2")]
         bool TrySerializeNonPrimitiveObject(object input, out object output);
         object DeserializeObject(object value, Type type);
     }
@@ -1284,14 +1282,14 @@ namespace GitHub
                 if (propertyInfo.CanRead)
                 {
                     MethodInfo getMethod = ReflectionUtils.GetGetterMethodInfo(propertyInfo);
-                    if (getMethod.IsStatic || !CanAdd(propertyInfo))
+                    if (!CanAddProperty(propertyInfo, getMethod))
                         continue;
                     result[MapClrMemberNameToJsonFieldName(propertyInfo.Name)] = ReflectionUtils.GetGetMethod(propertyInfo);
                 }
             }
             foreach (FieldInfo fieldInfo in ReflectionUtils.GetFields(type))
             {
-                if (fieldInfo.IsStatic || !CanAdd(fieldInfo))
+                if (!CanAddField(fieldInfo))
                     continue;
                 result[MapClrMemberNameToJsonFieldName(fieldInfo.Name)] = ReflectionUtils.GetGetMethod(fieldInfo);
             }
@@ -1306,23 +1304,36 @@ namespace GitHub
                 if (propertyInfo.CanWrite)
                 {
                     MethodInfo setMethod = ReflectionUtils.GetSetterMethodInfo(propertyInfo);
-                    if (setMethod.IsStatic || !CanAdd(propertyInfo))
+                    if (!CanAddProperty(propertyInfo, setMethod))
                         continue;
                     result[MapClrMemberNameToJsonFieldName(propertyInfo.Name)] = new KeyValuePair<Type, ReflectionUtils.SetDelegate>(propertyInfo.PropertyType, ReflectionUtils.GetSetMethod(propertyInfo));
                 }
             }
             foreach (FieldInfo fieldInfo in ReflectionUtils.GetFields(type))
             {
-                if (fieldInfo.IsInitOnly || fieldInfo.IsStatic || !CanAdd(fieldInfo))
+                if (fieldInfo.IsInitOnly || !CanAddField(fieldInfo))
                     continue;
                 result[MapClrMemberNameToJsonFieldName(fieldInfo.Name)] = new KeyValuePair<Type, ReflectionUtils.SetDelegate>(fieldInfo.FieldType, ReflectionUtils.GetSetMethod(fieldInfo));
             }
             return result;
         }
 
-        protected virtual bool CanAdd(MemberInfo info)
+        protected virtual bool CanAddField(FieldInfo field)
         {
-            if (ReflectionUtils.GetAttribute(info, typeof(NotSerializedAttribute)) != null)
+            if (field.IsStatic)
+                return false;
+            if (ReflectionUtils.GetAttribute(field, typeof(NotSerializedAttribute)) != null)
+                return false;
+            if (ReflectionUtils.GetAttribute(field, typeof(CompilerGeneratedAttribute)) != null)
+                return false;
+            return true;
+        }
+
+        protected virtual bool CanAddProperty(PropertyInfo property, MethodInfo method)
+        {
+            if (method.IsStatic)
+                return false;
+            if (ReflectionUtils.GetAttribute(property, typeof(NotSerializedAttribute)) != null)
                 return false;
             return true;
         }
@@ -1338,7 +1349,7 @@ namespace GitHub
             if (type == null) throw new ArgumentNullException("type");
             string str = value as string;
 
-            if (type == typeof (Guid) && string.IsNullOrEmpty(str))
+            if (type == typeof(Guid) && string.IsNullOrEmpty(str))
                 return default(Guid);
 
             if (value == null)
@@ -1358,19 +1369,19 @@ namespace GitHub
                         return new Guid(str);
                     if (type == typeof(Uri))
                     {
-                        bool isValid =  Uri.IsWellFormedUriString(str, UriKind.RelativeOrAbsolute);
+                        bool isValid = Uri.IsWellFormedUriString(str, UriKind.RelativeOrAbsolute);
 
                         Uri result;
                         if (isValid && Uri.TryCreate(str, UriKind.RelativeOrAbsolute, out result))
                             return result;
 
-                                                return null;
+                        return null;
                     }
 
-                                    if (type == typeof(string))
-                                        return str;
+                    if (type == typeof(string))
+                        return str;
 
-                                    return Convert.ChangeType(str, type, CultureInfo.InvariantCulture);
+                    return Convert.ChangeType(str, type, CultureInfo.InvariantCulture);
                 }
                 else
                 {
@@ -1477,7 +1488,7 @@ namespace GitHub
             return Convert.ToDouble(p, CultureInfo.InvariantCulture);
         }
 
-        [SuppressMessage("Microsoft.Design", "CA1007:UseGenericsWhereAppropriate", Justification="Need to support .NET 2")]
+        [SuppressMessage("Microsoft.Design", "CA1007:UseGenericsWhereAppropriate", Justification = "Need to support .NET 2")]
         protected virtual bool TrySerializeKnownTypes(object input, out object output)
         {
             bool returnValue = true;
@@ -1502,7 +1513,7 @@ namespace GitHub
             }
             return returnValue;
         }
-        [SuppressMessage("Microsoft.Design", "CA1007:UseGenericsWhereAppropriate", Justification="Need to support .NET 2")]
+        [SuppressMessage("Microsoft.Design", "CA1007:UseGenericsWhereAppropriate", Justification = "Need to support .NET 2")]
         protected virtual bool TrySerializeUnknownTypes(object input, out object output)
         {
             if (input == null) throw new ArgumentNullException("input");
@@ -1601,25 +1612,23 @@ namespace GitHub
 
 #endif
 
-    namespace Reflection
-    {
-        // This class is meant to be copied into other libraries. So we want to exclude it from Code Analysis rules
-        // that might be in place in the target project.
-        [GeneratedCode("reflection-utils", "1.0.0")]
+    // This class is meant to be copied into other libraries. So we want to exclude it from Code Analysis rules
+    // that might be in place in the target project.
+    [GeneratedCode("reflection-utils", "1.0.0")]
 #if SIMPLE_JSON_REFLECTION_UTILS_PUBLIC
         public
 #else
-        internal
+    internal
 #endif
  class ReflectionUtils
-        {
-            private static readonly object[] EmptyObjects = new object[] { };
+    {
+        private static readonly object[] EmptyObjects = new object[] { };
 
-            public delegate object GetDelegate(object source);
-            public delegate void SetDelegate(object source, object value);
-            public delegate object ConstructorDelegate(params object[] args);
+        public delegate object GetDelegate(object source);
+        public delegate void SetDelegate(object source, object value);
+        public delegate object ConstructorDelegate(params object[] args);
 
-            public delegate TValue ThreadSafeDictionaryValueFactory<TKey, TValue>(TKey key);
+        public delegate TValue ThreadSafeDictionaryValueFactory<TKey, TValue>(TKey key);
 
 #if SIMPLE_JSON_TYPEINFO
             public static TypeInfo GetTypeInfo(Type type)
@@ -1627,233 +1636,233 @@ namespace GitHub
                 return type.GetTypeInfo();
             }
 #else
-            public static Type GetTypeInfo(Type type)
-            {
-                return type;
-            }
+        public static Type GetTypeInfo(Type type)
+        {
+            return type;
+        }
 #endif
 
-            public static Attribute GetAttribute(MemberInfo info, Type type)
-            {
+        public static Attribute GetAttribute(MemberInfo info, Type type)
+        {
 #if SIMPLE_JSON_TYPEINFO
                 if (info == null || type == null || !info.IsDefined(type))
                     return null;
                 return info.GetCustomAttribute(type);
 #else
-                if (info == null || type == null || !Attribute.IsDefined(info, type))
-                    return null;
-                return Attribute.GetCustomAttribute(info, type);
+            if (info == null || type == null || !Attribute.IsDefined(info, type))
+                return null;
+            return Attribute.GetCustomAttribute(info, type);
 #endif
-            }
+        }
 
-            public static Type GetGenericListElementType(Type type)
-            {
-                IEnumerable<Type> interfaces;
+        public static Type GetGenericListElementType(Type type)
+        {
+            IEnumerable<Type> interfaces;
 #if SIMPLE_JSON_TYPEINFO
                 interfaces = type.GetTypeInfo().ImplementedInterfaces;
 #else
-                interfaces = type.GetInterfaces();
+            interfaces = type.GetInterfaces();
 #endif
-                foreach (Type implementedInterface in interfaces)
-                {
-                    if (IsTypeGeneric(implementedInterface) &&
-                        implementedInterface.GetGenericTypeDefinition() == typeof (IList<>))
-                    {
-                        return GetGenericTypeArguments(implementedInterface)[0];
-                    }
-                }
-                return GetGenericTypeArguments(type)[0];
-            }
-
-            public static Attribute GetAttribute(Type objectType, Type attributeType)
+            foreach (Type implementedInterface in interfaces)
             {
+                if (IsTypeGeneric(implementedInterface) &&
+                    implementedInterface.GetGenericTypeDefinition() == typeof(IList<>))
+                {
+                    return GetGenericTypeArguments(implementedInterface)[0];
+                }
+            }
+            return GetGenericTypeArguments(type)[0];
+        }
+
+        public static Attribute GetAttribute(Type objectType, Type attributeType)
+        {
 
 #if SIMPLE_JSON_TYPEINFO
                 if (objectType == null || attributeType == null || !objectType.GetTypeInfo().IsDefined(attributeType))
                     return null;
                 return objectType.GetTypeInfo().GetCustomAttribute(attributeType);
 #else
-                if (objectType == null || attributeType == null || !Attribute.IsDefined(objectType, attributeType))
-                    return null;
-                return Attribute.GetCustomAttribute(objectType, attributeType);
+            if (objectType == null || attributeType == null || !Attribute.IsDefined(objectType, attributeType))
+                return null;
+            return Attribute.GetCustomAttribute(objectType, attributeType);
 #endif
-            }
+        }
 
-            public static Type[] GetGenericTypeArguments(Type type)
-            {
+        public static Type[] GetGenericTypeArguments(Type type)
+        {
 #if SIMPLE_JSON_TYPEINFO
                 return type.GetTypeInfo().GenericTypeArguments;
 #else
-                return type.GetGenericArguments();
+            return type.GetGenericArguments();
 #endif
-            }
+        }
 
-            public static bool IsTypeGeneric(Type type)
-            {
-                return GetTypeInfo(type).IsGenericType;
-            }
+        public static bool IsTypeGeneric(Type type)
+        {
+            return GetTypeInfo(type).IsGenericType;
+        }
 
-            public static bool IsTypeGenericeCollectionInterface(Type type)
-            {
-                if (!IsTypeGeneric(type))
-                    return false;
+        public static bool IsTypeGenericeCollectionInterface(Type type)
+        {
+            if (!IsTypeGeneric(type))
+                return false;
 
-                Type genericDefinition = type.GetGenericTypeDefinition();
+            Type genericDefinition = type.GetGenericTypeDefinition();
 
-                return (genericDefinition == typeof(IList<>)
-                    || genericDefinition == typeof(ICollection<>)
-                    || genericDefinition == typeof(IEnumerable<>)
+            return (genericDefinition == typeof(IList<>)
+                || genericDefinition == typeof(ICollection<>)
+                || genericDefinition == typeof(IEnumerable<>)
 #if SIMPLE_JSON_READONLY_COLLECTIONS
                     || genericDefinition == typeof(IReadOnlyCollection<>)
                     || genericDefinition == typeof(IReadOnlyList<>)
 #endif
                     );
-            }
+        }
 
-            public static bool IsAssignableFrom(Type type1, Type type2)
-            {
-                return GetTypeInfo(type1).IsAssignableFrom(GetTypeInfo(type2));
-            }
+        public static bool IsAssignableFrom(Type type1, Type type2)
+        {
+            return GetTypeInfo(type1).IsAssignableFrom(GetTypeInfo(type2));
+        }
 
-            public static bool IsTypeDictionary(Type type)
-            {
+        public static bool IsTypeDictionary(Type type)
+        {
 #if SIMPLE_JSON_TYPEINFO
                 if (typeof(IDictionary<,>).GetTypeInfo().IsAssignableFrom(type.GetTypeInfo()))
                     return true;
 #else
-                if (typeof(System.Collections.IDictionary).IsAssignableFrom(type))
-                    return true;
+            if (typeof(System.Collections.IDictionary).IsAssignableFrom(type))
+                return true;
 #endif
-                if (!GetTypeInfo(type).IsGenericType)
-                    return false;
+            if (!GetTypeInfo(type).IsGenericType)
+                return false;
 
-                Type genericDefinition = type.GetGenericTypeDefinition();
-                return genericDefinition == typeof(IDictionary<,>);
-            }
+            Type genericDefinition = type.GetGenericTypeDefinition();
+            return genericDefinition == typeof(IDictionary<,>);
+        }
 
-            public static bool IsNullableType(Type type)
-            {
-                return GetTypeInfo(type).IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
-            }
+        public static bool IsNullableType(Type type)
+        {
+            return GetTypeInfo(type).IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
+        }
 
-            public static object ToNullableType(object obj, Type nullableType)
-            {
-                return obj == null ? null : Convert.ChangeType(obj, Nullable.GetUnderlyingType(nullableType), CultureInfo.InvariantCulture);
-            }
+        public static object ToNullableType(object obj, Type nullableType)
+        {
+            return obj == null ? null : Convert.ChangeType(obj, Nullable.GetUnderlyingType(nullableType), CultureInfo.InvariantCulture);
+        }
 
-            public static bool IsValueType(Type type)
-            {
-                return GetTypeInfo(type).IsValueType;
-            }
+        public static bool IsValueType(Type type)
+        {
+            return GetTypeInfo(type).IsValueType;
+        }
 
-            public static IEnumerable<ConstructorInfo> GetConstructors(Type type)
-            {
+        public static IEnumerable<ConstructorInfo> GetConstructors(Type type)
+        {
 #if SIMPLE_JSON_TYPEINFO
                 return type.GetTypeInfo().DeclaredConstructors;
 #else
-                return type.GetConstructors();
+            return type.GetConstructors();
 #endif
-            }
+        }
 
-            public static ConstructorInfo GetConstructorInfo(Type type, params Type[] argsType)
+        public static ConstructorInfo GetConstructorInfo(Type type, params Type[] argsType)
+        {
+            IEnumerable<ConstructorInfo> constructorInfos = GetConstructors(type);
+            int i;
+            bool matches;
+            foreach (ConstructorInfo constructorInfo in constructorInfos)
             {
-                IEnumerable<ConstructorInfo> constructorInfos = GetConstructors(type);
-                int i;
-                bool matches;
-                foreach (ConstructorInfo constructorInfo in constructorInfos)
+                ParameterInfo[] parameters = constructorInfo.GetParameters();
+                if (argsType.Length != parameters.Length)
+                    continue;
+
+                i = 0;
+                matches = true;
+                foreach (ParameterInfo parameterInfo in constructorInfo.GetParameters())
                 {
-                    ParameterInfo[] parameters = constructorInfo.GetParameters();
-                    if (argsType.Length != parameters.Length)
-                        continue;
-
-                    i = 0;
-                    matches = true;
-                    foreach (ParameterInfo parameterInfo in constructorInfo.GetParameters())
+                    if (parameterInfo.ParameterType != argsType[i])
                     {
-                        if (parameterInfo.ParameterType != argsType[i])
-                        {
-                            matches = false;
-                            break;
-                        }
+                        matches = false;
+                        break;
                     }
-
-                    if (matches)
-                        return constructorInfo;
                 }
 
-                return null;
+                if (matches)
+                    return constructorInfo;
             }
 
-            public static IEnumerable<PropertyInfo> GetProperties(Type type)
-            {
+            return null;
+        }
+
+        public static IEnumerable<PropertyInfo> GetProperties(Type type)
+        {
 #if SIMPLE_JSON_TYPEINFO
                 return type.GetRuntimeProperties();
 #else
-                return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
 #endif
-            }
+        }
 
-            public static IEnumerable<FieldInfo> GetFields(Type type)
-            {
+        public static IEnumerable<FieldInfo> GetFields(Type type)
+        {
 #if SIMPLE_JSON_TYPEINFO
                 return type.GetRuntimeFields();
 #else
-                return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
 #endif
-            }
+        }
 
-            public static MethodInfo GetGetterMethodInfo(PropertyInfo propertyInfo)
-            {
+        public static MethodInfo GetGetterMethodInfo(PropertyInfo propertyInfo)
+        {
 #if SIMPLE_JSON_TYPEINFO
                 return propertyInfo.GetMethod;
 #else
-                return propertyInfo.GetGetMethod(true);
+            return propertyInfo.GetGetMethod(true);
 #endif
-            }
+        }
 
-            public static MethodInfo GetSetterMethodInfo(PropertyInfo propertyInfo)
-            {
+        public static MethodInfo GetSetterMethodInfo(PropertyInfo propertyInfo)
+        {
 #if SIMPLE_JSON_TYPEINFO
                 return propertyInfo.SetMethod;
 #else
-                return propertyInfo.GetSetMethod(true);
+            return propertyInfo.GetSetMethod(true);
 #endif
-            }
+        }
 
-            public static ConstructorDelegate GetContructor(ConstructorInfo constructorInfo)
-            {
+        public static ConstructorDelegate GetContructor(ConstructorInfo constructorInfo)
+        {
 #if SIMPLE_JSON_NO_LINQ_EXPRESSION
-                return GetConstructorByReflection(constructorInfo);
+            return GetConstructorByReflection(constructorInfo);
 #else
                 return GetConstructorByExpression(constructorInfo);
 #endif
-            }
+        }
 
-            public static ConstructorDelegate GetContructor(Type type, params Type[] argsType)
-            {
+        public static ConstructorDelegate GetContructor(Type type, params Type[] argsType)
+        {
 #if SIMPLE_JSON_NO_LINQ_EXPRESSION
-                return GetConstructorByReflection(type, argsType);
+            return GetConstructorByReflection(type, argsType);
 #else
                 return GetConstructorByExpression(type, argsType);
 #endif
-            }
+        }
 
-            public static ConstructorDelegate GetConstructorByReflection(ConstructorInfo constructorInfo)
-            {
-                return delegate(object[] args) { return constructorInfo.Invoke(args); };
-            }
+        public static ConstructorDelegate GetConstructorByReflection(ConstructorInfo constructorInfo)
+        {
+            return delegate (object[] args) { return constructorInfo.Invoke(args); };
+        }
 
-            public static ConstructorDelegate GetConstructorByReflection(Type type, params Type[] argsType)
-            {
-                ConstructorInfo constructorInfo = GetConstructorInfo(type, argsType);
-                // if it's a value type (i.e., struct), it won't have a default constructor, so use Activator instead
-                return constructorInfo == null ? (type.IsValueType ? GetConstructorForValueType(type) : null) : GetConstructorByReflection(constructorInfo);
-            }
+        public static ConstructorDelegate GetConstructorByReflection(Type type, params Type[] argsType)
+        {
+            ConstructorInfo constructorInfo = GetConstructorInfo(type, argsType);
+            // if it's a value type (i.e., struct), it won't have a default constructor, so use Activator instead
+            return constructorInfo == null ? (type.IsValueType ? GetConstructorForValueType(type) : null) : GetConstructorByReflection(constructorInfo);
+        }
 
-            static ConstructorDelegate GetConstructorForValueType(Type type)
-            {
-                return delegate (object[] args) { return Activator.CreateInstance(type); };
-            }
+        static ConstructorDelegate GetConstructorForValueType(Type type)
+        {
+            return delegate (object[] args) { return Activator.CreateInstance(type); };
+        }
 
 #if !SIMPLE_JSON_NO_LINQ_EXPRESSION
 
@@ -1885,34 +1894,34 @@ namespace GitHub
 
 #endif
 
-            public static GetDelegate GetGetMethod(PropertyInfo propertyInfo)
-            {
+        public static GetDelegate GetGetMethod(PropertyInfo propertyInfo)
+        {
 #if SIMPLE_JSON_NO_LINQ_EXPRESSION
-                return GetGetMethodByReflection(propertyInfo);
+            return GetGetMethodByReflection(propertyInfo);
 #else
                 return GetGetMethodByExpression(propertyInfo);
 #endif
-            }
+        }
 
-            public static GetDelegate GetGetMethod(FieldInfo fieldInfo)
-            {
+        public static GetDelegate GetGetMethod(FieldInfo fieldInfo)
+        {
 #if SIMPLE_JSON_NO_LINQ_EXPRESSION
-                return GetGetMethodByReflection(fieldInfo);
+            return GetGetMethodByReflection(fieldInfo);
 #else
                 return GetGetMethodByExpression(fieldInfo);
 #endif
-            }
+        }
 
-            public static GetDelegate GetGetMethodByReflection(PropertyInfo propertyInfo)
-            {
-                MethodInfo methodInfo = GetGetterMethodInfo(propertyInfo);
-                return delegate(object source) { return methodInfo.Invoke(source, EmptyObjects); };
-            }
+        public static GetDelegate GetGetMethodByReflection(PropertyInfo propertyInfo)
+        {
+            MethodInfo methodInfo = GetGetterMethodInfo(propertyInfo);
+            return delegate (object source) { return methodInfo.Invoke(source, EmptyObjects); };
+        }
 
-            public static GetDelegate GetGetMethodByReflection(FieldInfo fieldInfo)
-            {
-                return delegate(object source) { return fieldInfo.GetValue(source); };
-            }
+        public static GetDelegate GetGetMethodByReflection(FieldInfo fieldInfo)
+        {
+            return delegate (object source) { return fieldInfo.GetValue(source); };
+        }
 
 #if !SIMPLE_JSON_NO_LINQ_EXPRESSION
 
@@ -1935,40 +1944,40 @@ namespace GitHub
 
 #endif
 
-            public static SetDelegate GetSetMethod(PropertyInfo propertyInfo)
-            {
+        public static SetDelegate GetSetMethod(PropertyInfo propertyInfo)
+        {
 #if SIMPLE_JSON_NO_LINQ_EXPRESSION
-                return GetSetMethodByReflection(propertyInfo);
+            return GetSetMethodByReflection(propertyInfo);
 #else
                 // if it's a struct, we want to use reflection, as linq expressions modify copies of the object and not the real thing
                 if (propertyInfo.DeclaringType.IsValueType)
                     return GetSetMethodByReflection(propertyInfo);
                 return GetSetMethodByExpression(propertyInfo);
 #endif
-            }
+        }
 
-            public static SetDelegate GetSetMethod(FieldInfo fieldInfo)
-            {
+        public static SetDelegate GetSetMethod(FieldInfo fieldInfo)
+        {
 #if SIMPLE_JSON_NO_LINQ_EXPRESSION
-                return GetSetMethodByReflection(fieldInfo);
+            return GetSetMethodByReflection(fieldInfo);
 #else
                 // if it's a struct, we want to use reflection, as linq expressions modify copies of the object and not the real thing
                 if (fieldInfo.DeclaringType.IsValueType)
                     return GetSetMethodByReflection(fieldInfo);
                 return GetSetMethodByExpression(fieldInfo);
 #endif
-            }
+        }
 
-            public static SetDelegate GetSetMethodByReflection(PropertyInfo propertyInfo)
-            {
-                MethodInfo methodInfo = GetSetterMethodInfo(propertyInfo);
-                return delegate(object source, object value) { methodInfo.Invoke(source, new object[] { value }); };
-            }
+        public static SetDelegate GetSetMethodByReflection(PropertyInfo propertyInfo)
+        {
+            MethodInfo methodInfo = GetSetterMethodInfo(propertyInfo);
+            return delegate (object source, object value) { methodInfo.Invoke(source, new object[] { value }); };
+        }
 
-            public static SetDelegate GetSetMethodByReflection(FieldInfo fieldInfo)
-            {
-                return delegate(object source, object value) { fieldInfo.SetValue(source, value); };
-            }
+        public static SetDelegate GetSetMethodByReflection(FieldInfo fieldInfo)
+        {
+            return delegate (object source, object value) { fieldInfo.SetValue(source, value); };
+        }
 
 #if !SIMPLE_JSON_NO_LINQ_EXPRESSION
 
@@ -2013,140 +2022,225 @@ namespace GitHub
 
 #endif
 
-            public sealed class ThreadSafeDictionary<TKey, TValue> : IDictionary<TKey, TValue>
+        public sealed class ThreadSafeDictionary<TKey, TValue> : IDictionary<TKey, TValue>
+        {
+            private readonly object _lock = new object();
+            private readonly ThreadSafeDictionaryValueFactory<TKey, TValue> _valueFactory;
+            private Dictionary<TKey, TValue> _dictionary;
+
+            public ThreadSafeDictionary(ThreadSafeDictionaryValueFactory<TKey, TValue> valueFactory)
             {
-                private readonly object _lock = new object();
-                private readonly ThreadSafeDictionaryValueFactory<TKey, TValue> _valueFactory;
-                private Dictionary<TKey, TValue> _dictionary;
-
-                public ThreadSafeDictionary(ThreadSafeDictionaryValueFactory<TKey, TValue> valueFactory)
-                {
-                    _valueFactory = valueFactory;
-                }
-
-                private TValue Get(TKey key)
-                {
-                    if (_dictionary == null)
-                        return AddValue(key);
-                    TValue value;
-                    if (!_dictionary.TryGetValue(key, out value))
-                        return AddValue(key);
-                    return value;
-                }
-
-                private TValue AddValue(TKey key)
-                {
-                    TValue value = _valueFactory(key);
-                    lock (_lock)
-                    {
-                        if (_dictionary == null)
-                        {
-                            _dictionary = new Dictionary<TKey, TValue>();
-                            _dictionary[key] = value;
-                        }
-                        else
-                        {
-                            TValue val;
-                            if (_dictionary.TryGetValue(key, out val))
-                                return val;
-                            Dictionary<TKey, TValue> dict = new Dictionary<TKey, TValue>(_dictionary);
-                            dict[key] = value;
-                            _dictionary = dict;
-                        }
-                    }
-                    return value;
-                }
-
-                public void Add(TKey key, TValue value)
-                {
-                    throw new NotImplementedException();
-                }
-
-                public bool ContainsKey(TKey key)
-                {
-                    return _dictionary.ContainsKey(key);
-                }
-
-                public ICollection<TKey> Keys
-                {
-                    get { return _dictionary.Keys; }
-                }
-
-                public bool Remove(TKey key)
-                {
-                    throw new NotImplementedException();
-                }
-
-                public bool TryGetValue(TKey key, out TValue value)
-                {
-                    value = this[key];
-                    return true;
-                }
-
-                public ICollection<TValue> Values
-                {
-                    get { return _dictionary.Values; }
-                }
-
-                public TValue this[TKey key]
-                {
-                    get { return Get(key); }
-                    set { throw new NotImplementedException(); }
-                }
-
-                public void Add(KeyValuePair<TKey, TValue> item)
-                {
-                    throw new NotImplementedException();
-                }
-
-                public void Clear()
-                {
-                    throw new NotImplementedException();
-                }
-
-                public bool Contains(KeyValuePair<TKey, TValue> item)
-                {
-                    throw new NotImplementedException();
-                }
-
-                public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
-                {
-                    throw new NotImplementedException();
-                }
-
-                public int Count
-                {
-                    get { return _dictionary.Count; }
-                }
-
-                public bool IsReadOnly
-                {
-                    get { throw new NotImplementedException(); }
-                }
-
-                public bool Remove(KeyValuePair<TKey, TValue> item)
-                {
-                    throw new NotImplementedException();
-                }
-
-                public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
-                {
-                    return _dictionary.GetEnumerator();
-                }
-
-                System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-                {
-                    return _dictionary.GetEnumerator();
-                }
+                _valueFactory = valueFactory;
             }
 
+            private TValue Get(TKey key)
+            {
+                if (_dictionary == null)
+                    return AddValue(key);
+                TValue value;
+                if (!_dictionary.TryGetValue(key, out value))
+                    return AddValue(key);
+                return value;
+            }
+
+            private TValue AddValue(TKey key)
+            {
+                TValue value = _valueFactory(key);
+                lock (_lock)
+                {
+                    if (_dictionary == null)
+                    {
+                        _dictionary = new Dictionary<TKey, TValue>();
+                        _dictionary[key] = value;
+                    }
+                    else
+                    {
+                        TValue val;
+                        if (_dictionary.TryGetValue(key, out val))
+                            return val;
+                        Dictionary<TKey, TValue> dict = new Dictionary<TKey, TValue>(_dictionary);
+                        dict[key] = value;
+                        _dictionary = dict;
+                    }
+                }
+                return value;
+            }
+
+            public void Add(TKey key, TValue value)
+            {
+                throw new NotImplementedException();
+            }
+
+            public bool ContainsKey(TKey key)
+            {
+                return _dictionary.ContainsKey(key);
+            }
+
+            public ICollection<TKey> Keys
+            {
+                get { return _dictionary.Keys; }
+            }
+
+            public bool Remove(TKey key)
+            {
+                throw new NotImplementedException();
+            }
+
+            public bool TryGetValue(TKey key, out TValue value)
+            {
+                value = this[key];
+                return true;
+            }
+
+            public ICollection<TValue> Values
+            {
+                get { return _dictionary.Values; }
+            }
+
+            public TValue this[TKey key]
+            {
+                get { return Get(key); }
+                set { throw new NotImplementedException(); }
+            }
+
+            public void Add(KeyValuePair<TKey, TValue> item)
+            {
+                throw new NotImplementedException();
+            }
+
+            public void Clear()
+            {
+                throw new NotImplementedException();
+            }
+
+            public bool Contains(KeyValuePair<TKey, TValue> item)
+            {
+                throw new NotImplementedException();
+            }
+
+            public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
+            {
+                throw new NotImplementedException();
+            }
+
+            public int Count
+            {
+                get { return _dictionary.Count; }
+            }
+
+            public bool IsReadOnly
+            {
+                get { throw new NotImplementedException(); }
+            }
+
+            public bool Remove(KeyValuePair<TKey, TValue> item)
+            {
+                throw new NotImplementedException();
+            }
+
+            public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
+            {
+                return _dictionary.GetEnumerator();
+            }
+
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+            {
+                return _dictionary.GetEnumerator();
+            }
         }
+
     }
 
+}
+
+namespace GitHub.Unity
+{
     [System.AttributeUsage(System.AttributeTargets.Property |
                        System.AttributeTargets.Field)]
     public sealed class NotSerializedAttribute : Attribute
     {
+    }
+
+    public static class JsonSerializerExtensions
+    {
+        static JsonSerializationStrategy publicLowerCaseStrategy = new JsonSerializationStrategy(true, true);
+        static JsonSerializationStrategy publicUpperCaseStrategy = new JsonSerializationStrategy(false, true);
+        static JsonSerializationStrategy privateLowerCaseStrategy = new JsonSerializationStrategy(true, false);
+        static JsonSerializationStrategy privateUpperCaseStrategy = new JsonSerializationStrategy(false, false);
+        public static string ToJson<T>(this T model, bool lowerCase = false, bool onlyPublic = true)
+        {
+            return SimpleJson.SerializeObject(model, GetStrategy(lowerCase, onlyPublic));
+        }
+
+        public static T FromJson<T>(this string json, bool lowerCase = false, bool onlyPublic = true)
+        {
+            return SimpleJson.DeserializeObject<T>(json, GetStrategy(lowerCase, onlyPublic));
+        }
+
+        private static JsonSerializationStrategy GetStrategy(bool lowerCase, bool onlyPublic)
+        {
+            if (lowerCase && onlyPublic)
+                return publicLowerCaseStrategy;
+            if (lowerCase && !onlyPublic)
+                return privateLowerCaseStrategy;
+            if (!lowerCase && onlyPublic)
+                return publicUpperCaseStrategy;
+            return privateUpperCaseStrategy;
+        }
+
+        /// <summary>
+        /// Convert from PascalCase to camelCase.
+        /// </summary>
+        private static string ToJsonPropertyName(string propertyName)
+        {
+            Guard.ArgumentNotNullOrWhiteSpace(propertyName, "propertyName");
+            int i = 0;
+            while (i < propertyName.Length && char.IsUpper(propertyName[i]))
+                i++;
+            return propertyName.Substring(0, i).ToLowerInvariant() + propertyName.Substring(i);
+        }
+
+        class JsonSerializationStrategy : PocoJsonSerializerStrategy
+        {
+            private bool toLowerCase = false;
+            private bool onlyPublic = true;
+
+            public JsonSerializationStrategy(bool toLowerCase, bool onlyPublic)
+            {
+                this.toLowerCase = toLowerCase;
+                this.onlyPublic = onlyPublic;
+            }
+
+            protected override bool CanAddField(FieldInfo field)
+            {
+                var canAdd = base.CanAddField(field);
+                return canAdd && (onlyPublic && field.IsPublic);
+            }
+
+            protected override bool CanAddProperty(PropertyInfo property, MethodInfo method)
+            {
+                var canAdd = base.CanAddProperty(property, method);
+                if (!canAdd)
+                    return false;
+
+                // we always serialize public things
+                if (method.IsPublic)
+                    return true;
+
+                // if the getter is private and we're only serializing public things, skip this property
+                if (onlyPublic && method.Name.StartsWith("get_"))
+                    return false;
+
+                return true;
+            }
+
+            protected override string MapClrMemberNameToJsonFieldName(string clrPropertyName)
+            {
+                if (!toLowerCase)
+                    return base.MapClrMemberNameToJsonFieldName(clrPropertyName);
+                return ToJsonPropertyName(clrPropertyName);
+            }
+        }
     }
 }
 // ReSharper restore LoopCanBeConvertedToQuery

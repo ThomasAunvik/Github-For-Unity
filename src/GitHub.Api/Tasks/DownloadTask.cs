@@ -116,8 +116,9 @@ namespace GitHub.Unity
                 catch (Exception ex)
                 {
                     exception = ex;
+                    result = false;
                 }
-            } while (attempts++ < RetryCount);
+            } while (!result && attempts++ < RetryCount);
 
             if (!result)
             {

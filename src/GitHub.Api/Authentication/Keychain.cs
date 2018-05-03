@@ -123,7 +123,7 @@ namespace GitHub.Unity
                     logger.Warning("Keychain Username:\"{0}\" does not match cached Username:\"{1}\"; Hopefully it works", keychainItem.Username, connection.Username);
                 }
 
-                //logger.Trace("Loaded from Credential Manager Host:\"{0}\" Username:\"{1}\"", keychainItem.Host, keychainItem.Username); 
+                //logger.Trace("Loaded from Credential Manager Host:\"{0}\" Username:\"{1}\"", keychainItem.Host, keychainItem.Username);
                 keychainAdapter.Set(keychainItem);
             }
             return keychainAdapter;
@@ -151,7 +151,7 @@ namespace GitHub.Unity
             //logger.Trace("Clear Host:{0}", host);
 
             Guard.ArgumentNotNull(host, nameof(host));
-        
+
             RemoveConnection(host);
 
             //clear octokit credentials
@@ -198,7 +198,7 @@ namespace GitHub.Unity
                 var json = cachePath.ReadAllText();
                 try
                 {
-                    var conns = SimpleJson.DeserializeObject<Connection[]>(json);
+                    var conns = json.FromJson<Connection[]>();
                     UpdateConnections(conns);
                 }
                 catch (IOException ex)
@@ -219,7 +219,7 @@ namespace GitHub.Unity
             //logger.Trace("WriteCacheToDisk Count:{0} Path:{1}", connectionCache.Count, cachePath.ToString());
             try
             {
-                var json = SimpleJson.SerializeObject(connections.Values.ToArray());
+                var json = connections.Values.ToJson();
                 cachePath.WriteAllText(json);
             }
             catch (IOException ex)
