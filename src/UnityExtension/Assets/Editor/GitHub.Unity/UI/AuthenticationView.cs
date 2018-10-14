@@ -209,7 +209,7 @@ namespace GitHub.Unity
             isBusy = false;
             if (success)
             {
-                TaskManager.Run(UsageTracker.IncrementAuthenticationViewButtonAuthentication, null);
+                UsageTracker.IncrementAuthenticationViewButtonAuthentication();
 
                 Clear();
                 Finish(true);
@@ -243,18 +243,8 @@ namespace GitHub.Unity
             {
                 if (authenticationService == null)
                 {
-                    UriString host;
-                    if (Repository != null && Repository.CloneUrl != null && Repository.CloneUrl.IsValidUri)
-                    {
-                        host = new UriString(Repository.CloneUrl.ToRepositoryUri()
-                            .GetComponents(UriComponents.SchemeAndServer, UriFormat.SafeUnescaped));
-                    }
-                    else
-                    {
-                        host = UriString.ToUriString(HostAddress.GitHubDotComHostAddress.WebUri);
-                    }
-
-                    AuthenticationService = new AuthenticationService(host, Platform.Keychain, Environment.NodeJsExecutablePath, Environment.OctorunScriptPath);
+                    UriString host = Repository != null ? Repository.CloneUrl : null;
+                    AuthenticationService = new AuthenticationService(host, Platform.Keychain, Manager.ProcessManager, Manager.TaskManager, Environment);
                 }
                 return authenticationService;
             }
